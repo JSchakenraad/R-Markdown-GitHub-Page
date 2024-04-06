@@ -1,0 +1,143 @@
+---
+title: "Elevation profile of the Netherlands"
+author: "Jos Schakenraad^[Geographer, data-analist and cyclist]"
+date: "First published on 2024-04-06 (updated `r Sys.Date()`)"
+output: html_document
+---                               
+
+<style>
+pre {
+  overflow-x: auto;
+  font-size: 12px;
+}
+pre code {
+  word-wrap: normal;
+  white-space: pre;
+}.main-container { width: 1000px; max-width:1600px;}
+body, td {
+   font-size: 15px;
+}
+code.r{
+  font-size: 12px;
+}
+</style>
+
+<br><br>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+                       
+It won't surprise anyone that the word "elevation" has a little different meaning in this mainly flat and small country than elsewhere. Climbing in the Netherlands - the name of this country literally means low country - is actually a 'contradictio in terminis', a contradiction in terms. Nevertheless, there are a number of irregularities in the landscape, apart from dikes and viaducts. The southernmost part of the Netherlands, South Limburg, has been lifted by tectonics, creating a plateau landscape in which a large number of valleys have been carved out by water erosion. Furthermore, the penultimate ice age - the Saale glacial stage - has left its mark on the landscape, especially in the middle of the country. On top of the Vaalserberg you will find the highest point in the Netherlands, at 323 meters above sea level.
+
+<br><br>
+
+# 1. Elevation profile of the Netherlands in 2D
+
+<br><br>
+
+Here's an R script to get a beautiful 2D map.^[Note on elevatr v0.99.0: Version 0.99.0 of 'elevatr' uses 'sf' and 'terra'.  Use of the 'sp', 'raster', and underlying 'rgdal' packages by 'elevatr' is being deprecated; however, get_elev_raster continues to return a RasterLayer. This will be dropped in future versions, so please plan accordingly.]                                                                           
+<br><br>
+                                                     
+
+```{r,  fig.width=11, fig.height=11, echo=TRUE, message=FALSE, warning=FALSE}
+
+
+version[['version.string']]
+                                
+
+library(elevatr)
+library(sf)
+library(raster)
+library(tidyverse)
+
+
+# Currently, there are two functions in this elevatr package which help users access elevation web services, 
+# namely, get_elev_point() and get_elev_raster().
+
+# The get_elev_point() function gets the point elevations using the USGS Elevation Point Query Services 
+# (for United states only) and AWS Terrain Tiles (for all global elevation data).
+
+# Input: This function accepts a data frame of longitude and latitude values (x and y), 
+# a SpatialPoints/SpatialPointsDataFrame, or a simple feature object (sf). It has a source argument src 
+# which indicates which API to use, either "eqps" or "aws".
+# Output: produces either a SpatialPointsDataFrame or Simple Feature object, depending on the class of input locations.
+# The get_elev_point() function can be used as follows:
+
+
+# The get_elev_raster() function helps users get elevation data as a raster from the AWS Open Data Terrain Tiles. 
+# The source data are global and also contain the estimations for depth for oceans.
+
+# Input: This takes in a data frame of longitude and latitude values (x and y) or any sp or raster object. 
+# It has a z argument to determine the zoom or resolution of the raster (1 to 14). 
+# It also has a clip argument to determine clipping of returned DEM. Options are "tile" 
+# which is the default value and returns the full tiles, "bbox" which returns the DEM clipped to the bounding box 
+# of the original locations, or "locations" if the spatial data in the input locations should be used to clip the DEM.
+ 
+# Output: Returns a raster object of the elevation tiles that cover the bounding box of the input spatial data.
+ 
+# Now we can use the get_elev_raster() function to obtain the elevation data of the Netherlands. 
+
+# Get the province borders, first.
+
+map_provinces_2023 <- st_read("https://service.pdok.nl/cbs/gebiedsindelingen/2023/wfs/v1_0?request=GetFeature&service=WFS&version=2.0.0&typeName=cbsgebiedsindelingen:provincie_gegeneraliseerd&outputFormat=json")
+
+class(map_provinces_2023)
+head(map_provinces_2023)
+
+basic_map <- map_provinces_2023 %>%
+  ggplot() +
+  geom_sf(aes()) +
+  labs(title="Provincies in Nederland") +
+  geom_sf_text(aes(label = statnaam)) +
+  coord_sf() + 
+  theme(axis.title.x=element_blank(),axis.title.y=element_blank()) 
+
+#basic_map
+
+elevation_data <- elevatr::get_elev_raster(locations = map_provinces_2023, z = 9, clip = "locations")
+
+elevation_data <- as.data.frame(elevation_data, xy = TRUE)
+
+colnames(elevation_data)[3] <- "elevation"
+
+# remove rows of data frame with one or more NA's, using complete.cases
+elevation_data <- elevation_data[complete.cases(elevation_data), ] %>% 
+  mutate(elevation = if_else(elevation < -10, -8, elevation)) %>% 
+  mutate(break_elevation = cut(elevation, breaks = c(-999, -5, -1, 0, 5, 15, 25, 50, 100, 200, 300, 999), 
+                                                          labels = c("< -4", "-4 - -1", "0", "1-5", "6-15", "16-25", "26-50", "51-100", "101-200", "201-300", "> 300")))
+
+class(elevation_data)
+head(elevation_data)
+
+ggplot() +
+  geom_raster(data = elevation_data, aes(x = x, y = y, fill = break_elevation)) +
+  geom_sf(data = map_provinces_2023, color = "black", fill = NA) +
+  coord_sf() +
+  scale_fill_manual("altitude meters", values = c("#3399FF","#33CCFF","#99FFFF","#99FFCC","#99FF99","#CCFF99","#CCCC99","#CCCC33","#FFCC33","#CC9900","#996600"), na.value = "grey80")  +  
+  labs(title = "Elevation profile of the Netherlands (2D)", x = "Longitude", y = "Latitude")
+                                                  
+
+```
+
+<br><br>
+
+# 2. Elevation profile of the Netherlands in 3D
+
+<br><br>
+
+However, for me the most beautiful elevation profile found on the internet is the following 3D map:
+
+<br><br>
+
+
+```{r echo=FALSE, out.width='80%', fig.align='center', fig.cap="Elevation profile of the Netherlands (3D)"}
+knitr::include_graphics('C:/Users/acmsc/Documents/R/Strava/graphs/gemeenten/kaart_hoogtemeters_3d.jpg')
+```
+<br><br>
+
+Unfortunately I have not yet managed to program a 3D map in R. To be continued.
+
+<br><br>
+              
+              
