@@ -3,7 +3,7 @@ title: "Elevation profile of the Netherlands"
 author: "Jos Schakenraad^[Geographer, data-analist and cyclist]"
 date: "First published on 2024-04-06 (updated `r Sys.Date()`)"
 output: html_document
----                               
+---                                
 
 <style>
 pre {
